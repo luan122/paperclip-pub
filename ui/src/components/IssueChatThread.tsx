@@ -87,7 +87,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MarkdownBody } from "./MarkdownBody";
-import { MarkdownEditor, type MentionOption, type MarkdownEditorRef } from "./MarkdownEditor";
+import { MarkdownEditor, type IssueMentionOption, type MentionOption, type MarkdownEditorRef } from "./MarkdownEditor";
 import { Identity } from "./Identity";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { IssueThreadInteractionCard } from "./IssueThreadInteractionCard";
@@ -278,6 +278,8 @@ interface IssueChatComposerProps {
   currentAssigneeValue?: string;
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
+  issueMentions?: IssueMentionOption[];
+  onIssueSearch?: (query: string | null) => void;
   agentMap?: Map<string, Agent>;
   composerDisabledReason?: string | null;
   composerHint?: string | null;
@@ -336,6 +338,8 @@ interface IssueChatThreadProps {
   currentAssigneeValue?: string;
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
+  issueMentions?: IssueMentionOption[];
+  onIssueSearch?: (query: string | null) => void;
   composerDisabledReason?: string | null;
   composerHint?: string | null;
   onWorkModeChange?: (workMode: IssueWorkMode) => Promise<void> | void;
@@ -3104,6 +3108,8 @@ const IssueChatComposer = forwardRef<IssueChatComposerHandle, IssueChatComposerP
   currentAssigneeValue = "",
   suggestedAssigneeValue,
   mentions = [],
+  issueMentions,
+  onIssueSearch,
   agentMap,
   composerDisabledReason = null,
   composerHint = null,
@@ -3429,6 +3435,8 @@ const IssueChatComposer = forwardRef<IssueChatComposerHandle, IssueChatComposerP
         onChange={setBody}
         placeholder="Reply"
         mentions={mentions}
+        issueMentions={issueMentions}
+        onIssueSearch={onIssueSearch}
         onSubmit={handleSubmit}
         imageUploadHandler={onImageUpload}
         fileDropTarget="parent"
@@ -3646,6 +3654,8 @@ export function IssueChatThread({
   currentAssigneeValue = "",
   suggestedAssigneeValue,
   mentions = [],
+  issueMentions,
+  onIssueSearch,
   composerDisabledReason = null,
   composerHint = null,
   showComposer = true,
@@ -4341,6 +4351,8 @@ export function IssueChatThread({
               currentAssigneeValue={currentAssigneeValue}
               suggestedAssigneeValue={suggestedAssigneeValue}
               mentions={mentions}
+              issueMentions={issueMentions}
+              onIssueSearch={onIssueSearch}
               agentMap={agentMap}
               composerDisabledReason={composerDisabledReason}
               composerHint={composerHint}

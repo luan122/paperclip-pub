@@ -163,7 +163,7 @@ import {
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
 } from "@paperclipai/adapter-utils/server-utils";
-import { extractSkillMentionIds, isUuidLike } from "@paperclipai/shared";
+import { extractSkillMentionIds, extractIssueReferenceIdentifiers, extractProjectMentionIds, isUuidLike } from "@paperclipai/shared";
 import { environmentService } from "./environments.js";
 import { environmentRuntimeService } from "./environment-runtime.js";
 import { environmentRunOrchestrator } from "./environment-run-orchestrator.js";
@@ -7099,6 +7099,63 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     } else {
       delete context.paperclipWakeComment;
     }
+
+    // Inject summaries for #issue and $project mentions in the wake comment so
+    // agents have immediate access to the referenced content.
+    if (wakeCommentContext?.body) {
+      const mentionedIdentifiers = extractIssueReferenceIdentifiers(wakeCommentContext.body)
+        .filter((id) => id !== issueRef?.identifier); // already in paperclipIssue
+      if (mentionedIdentifiers.length > 0) {
+        const mentionedIssues = await db
+          .select({
+            id: issues.id,
+            identifier: issues.identifier,
+            title: issues.title,
+            description: issues.description,
+            status: issues.status,
+            priority: issues.priority,
+          })
+          .from(issues)
+          .where(and(
+            eq(issues.companyId, agent.companyId),
+            inArray(issues.identifier, mentionedIdentifiers),
+          ));
+        if (mentionedIssues.length > 0) {
+          context.paperclipMentionedIssues = mentionedIssues;
+        } else {
+          delete context.paperclipMentionedIssues;
+        }
+      } else {
+        delete context.paperclipMentionedIssues;
+      }
+
+      const mentionedProjectIds = extractProjectMentionIds(wakeCommentContext.body);
+      if (mentionedProjectIds.length > 0) {
+        const mentionedProjects = await db
+          .select({
+            id: projects.id,
+            name: projects.name,
+            description: projects.description,
+            status: projects.status,
+          })
+          .from(projects)
+          .where(and(
+            eq(projects.companyId, agent.companyId),
+            inArray(projects.id, mentionedProjectIds),
+          ));
+        if (mentionedProjects.length > 0) {
+          context.paperclipMentionedProjects = mentionedProjects;
+        } else {
+          delete context.paperclipMentionedProjects;
+        }
+      } else {
+        delete context.paperclipMentionedProjects;
+      }
+    } else {
+      delete context.paperclipMentionedIssues;
+      delete context.paperclipMentionedProjects;
+    }
+
     if (taskMarkdown) {
       context.paperclipTaskMarkdown = taskMarkdown;
     } else {

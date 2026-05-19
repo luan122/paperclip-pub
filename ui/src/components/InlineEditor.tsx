@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "../lib/utils";
 import { MarkdownBody } from "./MarkdownBody";
-import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
+import { MarkdownEditor, type MarkdownEditorRef, type IssueMentionOption, type MentionOption } from "./MarkdownEditor";
 import { useAutosaveIndicator } from "../hooks/useAutosaveIndicator";
 import { FoldCurtain } from "./FoldCurtain";
 
@@ -16,6 +16,8 @@ interface InlineEditorProps {
   /** Called when a non-image file is dropped onto the editor. */
   onDropFile?: (file: File) => Promise<void>;
   mentions?: MentionOption[];
+  issueMentions?: IssueMentionOption[];
+  onIssueSearch?: (query: string | null) => void;
   nullable?: boolean;
   /** When true, long display-mode markdown is clipped with a fade curtain that expands on click. */
   foldable?: boolean;
@@ -54,6 +56,8 @@ export function InlineEditor({
   imageUploadHandler,
   onDropFile,
   mentions,
+  issueMentions,
+  onIssueSearch,
   foldable = false,
 }: InlineEditorProps) {
   const [editing, setEditing] = useState(false);
@@ -337,6 +341,8 @@ export function InlineEditor({
           imageUploadHandler={imageUploadHandler}
           onDropFile={onDropFile}
           mentions={mentions}
+          issueMentions={issueMentions}
+          onIssueSearch={onIssueSearch}
           onSubmit={() => {
             finalizeMultilineBlurOrSubmit();
           }}

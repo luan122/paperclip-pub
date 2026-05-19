@@ -33,12 +33,14 @@ import {
 } from "@mdxeditor/editor";
 import {
   buildAgentMentionHref,
+  buildIssueReferenceHref,
   buildProjectMentionHref,
   buildRoutineMentionHref,
   buildUserMentionHref,
 } from "@paperclipai/shared";
 import { Boxes, CalendarClock, User } from "lucide-react";
 import { AgentIcon } from "./AgentIconPicker";
+import { StatusIcon } from "./StatusIcon";
 import { applyMentionChipDecoration, clearMentionChipDecoration, parseMentionChipHref } from "../lib/mention-chips";
 import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
 import { mentionDeletionPlugin } from "../lib/mention-deletion";
@@ -61,6 +63,14 @@ export interface MentionOption {
   userId?: string;
 }
 
+export interface IssueMentionOption {
+  id: string;
+  kind: "issue";
+  identifier: string;
+  title: string;
+  status?: string;
+}
+
 /* ---- Editor props ---- */
 
 interface MarkdownEditorProps {
@@ -78,6 +88,10 @@ interface MarkdownEditorProps {
   bordered?: boolean;
   /** List of mentionable entities. Enables @-mention autocomplete. */
   mentions?: MentionOption[];
+  /** Issue results for # autocomplete. Update by responding to onIssueSearch. */
+  issueMentions?: IssueMentionOption[];
+  /** Called with the current # query when it changes; null when trigger is dismissed. */
+  onIssueSearch?: (query: string | null) => void;
   /** Called on Cmd/Ctrl+Enter */
   onSubmit?: () => void;
   /** Render the rich editor without allowing edits. */
@@ -174,8 +188,8 @@ function isSafeMarkdownLinkUrl(url: string): boolean {
 /* ---- Mention detection helpers ---- */
 
 interface MentionState {
-  trigger: "mention" | "skill";
-  marker: "@" | "/";
+  trigger: "mention" | "skill" | "issue" | "project_selector";
+  marker: "@" | "/" | "#" | "$";
   query: string;
   top: number;
   left: number;
@@ -193,7 +207,7 @@ interface MentionState {
   endPos: number;
 }
 
-type AutocompleteOption = MentionOption | SlashCommandOption;
+type AutocompleteOption = MentionOption | SlashCommandOption | IssueMentionOption;
 
 interface MentionMenuViewport {
   offsetLeft: number;
@@ -252,11 +266,11 @@ export function findMentionMatch(
   let marker: MentionState["marker"] | null = null;
   for (let i = offset - 1; i >= 0; i--) {
     const ch = text[i];
-    if (ch === "@" || ch === "/") {
+    if (ch === "@" || ch === "/" || ch === "#" || ch === "$") {
       if (i === 0 || /\s/.test(text[i - 1])) {
         atPos = i;
-        trigger = ch === "@" ? "mention" : "skill";
-        marker = ch;
+        marker = ch as MentionState["marker"];
+        trigger = ch === "@" ? "mention" : ch === "/" ? "skill" : ch === "#" ? "issue" : "project_selector";
       }
       break;
     }
@@ -441,10 +455,13 @@ function slashCommandMarkdown(option: SlashCommandOption): string {
   return `[/${option.slug}](${option.href}) `;
 }
 
-function autocompleteMarkdown(option: AutocompleteOption): string {
-  return option.kind === "skill" || option.kind === "routine"
-    ? slashCommandMarkdown(option)
-    : mentionMarkdown(option);
+function autocompleteMarkdown(option: AutocompleteOption, trigger?: MentionState["trigger"]): string {
+  if (option.kind === "skill" || option.kind === "routine") return slashCommandMarkdown(option);
+  if (option.kind === "issue") return `[#${option.identifier}](${buildIssueReferenceHref(option.identifier)}) `;
+  if (trigger === "project_selector" && option.kind === "project" && option.projectId) {
+    return `[$${option.name}](${buildProjectMentionHref(option.projectId, option.projectColor ?? null)}) `;
+  }
+  return mentionMarkdown(option);
 }
 
 export function shouldAcceptAutocompleteKey(
@@ -454,7 +471,7 @@ export function shouldAcceptAutocompleteKey(
 ): boolean {
   if (key === "Tab") return true;
   if (key !== "Enter") return false;
-  return trigger === "mention" || (trigger === "skill" && skillEnterArmed);
+  return trigger === "mention" || trigger === "issue" || trigger === "project_selector" || (trigger === "skill" && skillEnterArmed);
 }
 
 export function isSameAutocompleteSession(
@@ -474,6 +491,9 @@ function autocompleteOptionMatchesLink(option: AutocompleteOption, href: string)
   const parsed = parseMentionChipHref(href);
   if (!parsed) return false;
 
+  if (option.kind === "issue") {
+    return parsed.kind === "issue" && parsed.identifier === option.identifier;
+  }
   if (option.kind === "skill") {
     return parsed.kind === "skill" && parsed.skillId === option.skillId;
   }
@@ -552,7 +572,7 @@ export function placeCaretAfterMentionAnchor(target: HTMLAnchorElement): boolean
 /** Replace the active autocomplete token in the markdown string with the selected token. */
 function applyMention(markdown: string, state: MentionState, option: AutocompleteOption): string {
   const search = `${state.marker}${state.query}`;
-  const replacement = autocompleteMarkdown(option);
+  const replacement = autocompleteMarkdown(option, state.trigger);
   const idx = markdown.lastIndexOf(search);
   if (idx === -1) return markdown;
   return markdown.slice(0, idx) + replacement + markdown.slice(idx + search.length);
@@ -572,6 +592,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   fileDropTarget = "editor",
   bordered = true,
   mentions,
+  issueMentions,
+  onIssueSearch,
   onSubmit,
   readOnly = false,
 }: MarkdownEditorProps, forwardedRef) {
@@ -608,6 +630,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   const mentionActive = mentionState !== null && (
     (mentionState.trigger === "mention" && Boolean(mentions?.length))
     || (mentionState.trigger === "skill" && slashCommands.length > 0)
+    || (mentionState.trigger === "issue" && Boolean(onIssueSearch || issueMentions?.length))
+    || (mentionState.trigger === "project_selector" && Boolean(mentions?.some((m) => m.kind === "project")))
   );
   const mentionOptionByKey = useMemo(() => {
     const map = new Map<string, MentionOption>();
@@ -650,9 +674,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         })
         .slice(0, 8);
     }
+    if (mentionState.trigger === "issue") {
+      return (issueMentions ?? [])
+        .filter((m) => !q || m.identifier.toLowerCase().includes(q) || m.title.toLowerCase().includes(q))
+        .slice(0, 8);
+    }
+    if (mentionState.trigger === "project_selector") {
+      return (mentions ?? [])
+        .filter((m) => m.kind === "project" && (!q || m.name.toLowerCase().includes(q)))
+        .slice(0, 8);
+    }
     if (!mentions) return [];
     return mentions.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 8);
-  }, [mentionState, mentions, slashCommands]);
+  }, [mentionState, mentions, slashCommands, issueMentions]);
+
+  useEffect(() => {
+    if (mentionState?.trigger === "issue") {
+      onIssueSearch?.(mentionState.query);
+    } else {
+      onIssueSearch?.(null);
+    }
+  }, [mentionState?.trigger, mentionState?.query, onIssueSearch]);
 
   useImperativeHandle(forwardedRef, () => ({
     focus: () => {
@@ -851,6 +893,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       setMentionState(null);
       return;
     }
+    if (
+      result
+      && result.trigger === "issue"
+      && !onIssueSearch
+      && (!issueMentions || issueMentions.length === 0)
+    ) {
+      mentionStateRef.current = null;
+      skillEnterArmedRef.current = false;
+      setMentionState(null);
+      return;
+    }
+    if (
+      result
+      && result.trigger === "project_selector"
+      && (!mentions || !mentions.some((m) => m.kind === "project"))
+    ) {
+      mentionStateRef.current = null;
+      skillEnterArmedRef.current = false;
+      setMentionState(null);
+      return;
+    }
     const previous = mentionStateRef.current;
     const sameSession = isSameAutocompleteSession(previous, result);
     mentionStateRef.current = result;
@@ -859,10 +922,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       setMentionIndex(0);
     }
     setMentionState(result);
-  }, [mentions, slashCommands.length]);
+  }, [mentions, slashCommands.length, issueMentions, onIssueSearch]);
 
   useEffect(() => {
-    if ((!mentions || mentions.length === 0) && slashCommands.length === 0) return;
+    const hasProjectMentions = mentions?.some((m) => m.kind === "project");
+    if ((!mentions || mentions.length === 0) && slashCommands.length === 0 && !onIssueSearch && !issueMentions?.length && !hasProjectMentions) return;
 
     const el = containerRef.current;
     // Listen for input events on the container so mention detection
@@ -875,7 +939,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       document.removeEventListener("selectionchange", checkMention);
       el?.removeEventListener("input", onInput, true);
     };
-  }, [checkMention, mentions, slashCommands.length]);
+  }, [checkMention, mentions, slashCommands.length, issueMentions, onIssueSearch]);
 
   useEffect(() => {
     if (!mentionActive) return;
@@ -1276,47 +1340,47 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                   setMentionIndex(i);
                 }}
               >
-                {option.kind === "routine" ? (
-                  <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {option.kind === "issue" ? (
+                  <>
+                    <StatusIcon status={option.status} className="h-3 w-3 shrink-0" />
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{option.identifier}</span>
+                    <span className="truncate">{option.title}</span>
+                  </>
+                ) : option.kind === "routine" ? (
+                  <>
+                    <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span>{slashCommandLabel(option)}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Routine</span>
+                  </>
                 ) : option.kind === "skill" ? (
-                  <Boxes className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <>
+                    <Boxes className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span>{slashCommandLabel(option)}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Skill</span>
+                  </>
                 ) : option.kind === "project" && option.projectId ? (
-                  <span
-                    className="inline-flex h-2 w-2 rounded-full border border-border/50"
-                    style={{ backgroundColor: option.projectColor ?? "#64748b" }}
-                  />
+                  <>
+                    <span
+                      className="inline-flex h-2 w-2 rounded-full border border-border/50 shrink-0"
+                      style={{ backgroundColor: option.projectColor ?? "#64748b" }}
+                    />
+                    <span className="truncate">{option.name}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Project</span>
+                  </>
                 ) : option.kind === "user" ? (
-                  <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <>
+                    <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{option.name}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">User</span>
+                  </>
                 ) : (
-                  <AgentIcon
-                    icon={option.agentIcon}
-                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                  />
-                )}
-                <span>
-                  {option.kind === "skill" || option.kind === "routine"
-                    ? slashCommandLabel(option)
-                    : option.name}
-                </span>
-                {option.kind === "project" && option.projectId && (
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Project
-                  </span>
-                )}
-                {option.kind === "user" && (
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
-                    User
-                  </span>
-                )}
-                {option.kind === "skill" && (
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Skill
-                  </span>
-                )}
-                {option.kind === "routine" && (
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Routine
-                  </span>
+                  <>
+                    <AgentIcon
+                      icon={option.agentIcon}
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate">{option.name}</span>
+                  </>
                 )}
               </button>
             ))}

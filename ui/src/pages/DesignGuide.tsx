@@ -124,6 +124,7 @@ import { InlineEditor } from "@/components/InlineEditor";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { Identity } from "@/components/Identity";
 import { IssueReferencePill } from "@/components/IssueReferencePill";
+import { MarkdownBody } from "@/components/MarkdownBody";
 
 /* ------------------------------------------------------------------ */
 /*  Section wrapper                                                    */
@@ -1322,6 +1323,33 @@ export function DesignGuide() {
       {/* ============================================================ */}
       {/*  KEYBOARD SHORTCUTS                                           */}
       {/* ============================================================ */}
+      <Section title="Mention Triggers">
+        <SubSection title="@ Agent / Project / User">
+          <p className="text-sm text-muted-foreground mb-3">
+            Type <kbd className="px-1 py-0.5 text-xs font-mono bg-muted rounded border border-border">@</kbd> in any chat composer to open the agent/project/user picker. Inserts a styled chip linked to the entity.
+          </p>
+          <MarkdownBody
+            markdown="Assigning to [@Agent Alpha](agent://agent-alpha?i=bot) and tagging [@Lavanet](project://lavanet-id?c=%2316a34a)."
+          />
+        </SubSection>
+        <SubSection title="# Issue Mention">
+          <p className="text-sm text-muted-foreground mb-3">
+            Type <kbd className="px-1 py-0.5 text-xs font-mono bg-muted rounded border border-border">#</kbd> to open a searchable issue picker (queries the search API as you type). Inserts an issue chip. When an agent reads the comment, referenced issue summaries are injected into its context.
+          </p>
+          <MarkdownBody
+            markdown="Blocked by [#LAV-338](/issues/LAV-338) — needs to be resolved first."
+          />
+        </SubSection>
+        <SubSection title="$ Project Mention">
+          <p className="text-sm text-muted-foreground mb-3">
+            Type <kbd className="px-1 py-0.5 text-xs font-mono bg-muted rounded border border-border">$</kbd> to open a project picker (filtered client-side from the loaded project list). Inserts a project chip with the project color. Referenced project details are injected into the agent context.
+          </p>
+          <MarkdownBody
+            markdown="This work belongs to [$Lavanet](project://lavanet-id?c=%2316a34a)."
+          />
+        </SubSection>
+      </Section>
+
       <Section title="Keyboard Shortcuts">
         <div className="border border-border rounded-md divide-y divide-border text-sm">
           {[

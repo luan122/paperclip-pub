@@ -77,6 +77,7 @@ import { IssueProperties } from "../components/IssueProperties";
 import { IssueRunLedger } from "../components/IssueRunLedger";
 import { IssueWorkspaceCard } from "../components/IssueWorkspaceCard";
 import type { MentionOption } from "../components/MarkdownEditor";
+import { useIssueMentionSearch } from "../hooks/useIssueMentionSearch";
 import { ImageGalleryModal } from "../components/ImageGalleryModal";
 import { ScrollToBottom } from "../components/ScrollToBottom";
 import { StatusIcon } from "../components/StatusIcon";
@@ -647,6 +648,8 @@ type IssueDetailChatTabProps = {
   currentAssigneeValue: string;
   suggestedAssigneeValue: string;
   mentions: MentionOption[];
+  issueMentions: import("../components/MarkdownEditor").IssueMentionOption[];
+  onIssueSearch: (query: string | null) => void;
   composerDisabledReason: string | null;
   composerHint: string | null;
   queuedCommentReason: "hold" | "active_run" | "other";
@@ -715,6 +718,8 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   currentAssigneeValue,
   suggestedAssigneeValue,
   mentions,
+  issueMentions,
+  onIssueSearch,
   composerDisabledReason,
   composerHint,
   queuedCommentReason,
@@ -917,6 +922,8 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
         currentAssigneeValue={currentAssigneeValue}
         suggestedAssigneeValue={suggestedAssigneeValue}
         mentions={mentions}
+        issueMentions={issueMentions}
+        onIssueSearch={onIssueSearch}
         composerDisabledReason={composerDisabledReason}
         composerHint={composerHint}
         onVote={onVote}
@@ -1527,6 +1534,8 @@ export function IssueDetail() {
       members: companyMembers?.users,
     });
   }, [agents, companyMembers?.users, orderedProjects]);
+
+  const { issueMentions, onIssueSearch } = useIssueMentionSearch(selectedCompanyId);
 
   const resolvedProject = useMemo(
     () => (issue?.projectId ? orderedProjects.find((project) => project.id === issue.projectId) ?? issue.project ?? null : null),
@@ -3623,6 +3632,8 @@ export function IssueDetail() {
           multiline
           foldable
           mentions={mentionOptions}
+          issueMentions={issueMentions}
+          onIssueSearch={onIssueSearch}
           imageUploadHandler={async (file) => {
             const attachment = await uploadAttachment.mutateAsync(file);
             return attachment.contentPath;
@@ -3717,6 +3728,8 @@ export function IssueDetail() {
         feedbackDataSharingPreference={feedbackDataSharingPreference}
         feedbackTermsUrl={FEEDBACK_TERMS_URL}
         mentions={mentionOptions}
+        issueMentions={issueMentions}
+        onIssueSearch={onIssueSearch}
         imageUploadHandler={async (file) => {
           const attachment = await uploadAttachment.mutateAsync(file);
           return attachment.contentPath;
@@ -3946,6 +3959,8 @@ export function IssueDetail() {
               currentAssigneeValue={actualAssigneeValue}
               suggestedAssigneeValue={suggestedAssigneeValue}
               mentions={mentionOptions}
+              issueMentions={issueMentions}
+              onIssueSearch={onIssueSearch}
               composerDisabledReason={commentComposerDisabledReason}
               composerHint={composerHint}
               queuedCommentReason={queuedCommentReason}

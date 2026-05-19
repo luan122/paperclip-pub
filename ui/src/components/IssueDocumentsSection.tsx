@@ -18,7 +18,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { cn, relativeTime } from "../lib/utils";
 import { FoldCurtain } from "./FoldCurtain";
 import { MarkdownBody } from "./MarkdownBody";
-import { MarkdownEditor, type MentionOption } from "./MarkdownEditor";
+import { MarkdownEditor, type IssueMentionOption, type MentionOption } from "./MarkdownEditor";
 import { OutputFeedbackButtons } from "./OutputFeedbackButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,6 +148,8 @@ export function IssueDocumentsSection({
   feedbackDataSharingPreference = "prompt",
   feedbackTermsUrl = null,
   mentions,
+  issueMentions,
+  onIssueSearch,
   imageUploadHandler,
   onVote,
   extraActions,
@@ -159,6 +161,8 @@ export function IssueDocumentsSection({
   feedbackDataSharingPreference?: FeedbackDataSharingPreference;
   feedbackTermsUrl?: string | null;
   mentions?: MentionOption[];
+  issueMentions?: IssueMentionOption[];
+  onIssueSearch?: (query: string | null) => void;
   imageUploadHandler?: (file: File) => Promise<string>;
   onVote?: (
     revisionId: string,
@@ -790,6 +794,8 @@ export function IssueDocumentsSection({
             className="bg-transparent"
             contentClassName="min-h-[220px] text-[15px] leading-7"
             mentions={mentions}
+            issueMentions={issueMentions}
+            onIssueSearch={onIssueSearch}
             imageUploadHandler={imageUploadHandler}
             onSubmit={() => void commitDraft(draft, { clearAfterSave: false, trackAutosave: false })}
           />
@@ -1172,6 +1178,8 @@ export function IssueDocumentsSection({
                         className="bg-transparent"
                         contentClassName={documentBodyContentClassName}
                         mentions={mentions}
+                        issueMentions={issueMentions}
+                        onIssueSearch={onIssueSearch}
                         imageUploadHandler={imageUploadHandler}
                         onSubmit={() => void commitDraft(activeDraft ?? draft, { clearAfterSave: false, trackAutosave: true })}
                       />
