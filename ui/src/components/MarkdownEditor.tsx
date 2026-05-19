@@ -1342,7 +1342,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
               >
                 {option.kind === "issue" ? (
                   <>
-                    <StatusIcon status={option.status} className="h-3 w-3 shrink-0" />
+                    <StatusIcon status={option.status ?? ""} className="h-3 w-3 shrink-0" />
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{option.identifier}</span>
                     <span className="truncate">{option.title}</span>
                   </>
